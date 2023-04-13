@@ -5,8 +5,6 @@ const path = require("path");
 const start = new Date();
 const datetime = start.toISOString();
 
-//client.indices.getSettings({index:"jurisprudencia.9.4"}).then(r => console.log(JSON.stringify(r,null,"  ")))
-
 let index = process.env.ES_INDEX || "jurisprudencia.9.4";
 
 let folder = path.join(index, datetime);
