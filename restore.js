@@ -7,6 +7,9 @@ let index = process.env.ES_INDEX || "jurisprudencia.9.4";
 
 let ignore = ["provided_name","creation_date","uuid","version"]
 
+console.log(process.env.INITIAL_OFFSET)
+const INITIAL_OFFSET = parseInt(process.env.INITIAL_OFFSET) || 0
+
 fs.readdir(index).then( async backups => {
     let last = backups.sort((a,b) => new Date(b) - new Date(a))[0]
     let indiceInfo = path.join(index, last, "indice.json");
@@ -17,8 +20,8 @@ fs.readdir(index).then( async backups => {
     }
     let folder = path.join(index, last, "values");
     let files = await fs.readdir(folder);
-    let i = 0;
-    for( let filename of files){
+    let i = INITIAL_OFFSET;
+    for( let filename of files.slice(INITIAL_OFFSET)){
         i++;
         let id = filename.replace(".json","");
         let file = path.join(folder, filename);
