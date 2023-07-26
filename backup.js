@@ -1,5 +1,5 @@
 const {Client} = require("@elastic/elasticsearch")
-const client = new Client({node: process.env.ES_URL || "http://localhost:9200"});
+const client = new Client({node: process.env.ES_URL || "http://localhost:9200", auth: { username: process.env.ES_USER, password: process.env.ES_PASS}})
 const fs = require("fs/promises")
 const path = require("path");
 const start = new Date();
