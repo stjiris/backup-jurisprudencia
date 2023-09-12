@@ -18,6 +18,7 @@ fs.readdir(index).then( async backups => {
     if( !exists ){
         await client.indices.create({index, ...indiceInfoObj[index]}).then(r => console.log(`Creating ${index}. result: ${r.acknowledged}`))
     }
+    await client.indices.putSettings({index: index, settings: {refresh_interval: -1}});
     let folder = path.join(index, last, "values");
     let files = await fs.readdir(folder);
     let i = INITIAL_OFFSET;
@@ -38,5 +39,6 @@ fs.readdir(index).then( async backups => {
         })
         console.log(`Index ${i} / ${files.length}`)
     }
+    await client.indices.putSettings({index: index, settings: {refresh_interval: null}});
     
 })
