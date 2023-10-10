@@ -1,44 +1,55 @@
 const {Client} = require("@elastic/elasticsearch")
 const client = new Client({node: process.env.ES_URL || "http://localhost:9200", auth: { username: process.env.ES_USER, password: process.env.ES_PASS}})
-const fs = require("fs/promises")
-const path = require("path");
-
-let index = process.env.ES_INDEX || "jurisprudencia.9.4";
+const {createReadStream} = require("fs");
+const zlib = require("node:zlib");
+const tar = require("tar-stream");
 
 let ignore = ["provided_name","creation_date","uuid","version"]
 
-console.log(process.env.INITIAL_OFFSET)
-const INITIAL_OFFSET = parseInt(process.env.INITIAL_OFFSET) || 0
+module.exports = async function restore(filetoTar){
+    const start = new Date();
+    const extract = tar.extract();
 
-fs.readdir(index).then( async backups => {
-    let last = backups.sort((a,b) => new Date(b) - new Date(a))[0]
-    let indiceInfo = path.join(index, last, "indice.json");
-    let indiceInfoObj = JSON.parse((await fs.readFile(indiceInfo)).toString(), (key, value) => ignore.includes(key) ? undefined : value )
-    let exists = await client.indices.exists({index: index});
-    if( !exists ){
-        await client.indices.create({index, ...indiceInfoObj[index]}).then(r => console.log(`Creating ${index}. result: ${r.acknowledged}`))
-    }
-    await client.indices.putSettings({index: index, settings: {refresh_interval: -1}});
-    let folder = path.join(index, last, "values");
-    let files = await fs.readdir(folder);
-    let i = INITIAL_OFFSET;
-    for( let filename of files.slice(INITIAL_OFFSET)){
-        i++;
-        let id = filename.replace(".json","");
-        let file = path.join(folder, filename);
-        if( exists ){
-            if( await client.exists({index: index, id: id}) ){
-                continue;
+    createReadStream(filetoTar).pipe(zlib.createGunzip()).pipe(extract)
+    let indice = null;
+    let c = 0;
+    for await (const entry of extract) {
+        let name = entry.header.name;
+        if( name == "indice.json" ){
+            let indiceInfo = JSON.parse(await streamToString(entry), (key, value) => ignore.includes(key) ? undefined : value);
+            indice = Object.keys(indiceInfo)[0];
+            let exists = await client.indices.exists({index:indice});
+            if( !exists ){
+                await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${header.name}. result: ${r.acknowledged}`))
             }
+            await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
         }
-        let obj = JSON.parse(await fs.readFile(file));
-        await client.index({
-            index: index,
-            id: id,
-            document: obj
-        })
-        console.log(`Index ${i} / ${files.length}`)
+        else{
+            let id = name.replace("values/","").replace(".json","");
+            let obj = JSON.parse(await streamToString(entry));
+            await client.index({
+                index: indice,
+                id: id,
+                document: obj
+            })
+            console.log("Indexing", c++)
+        }
     }
-    await client.indices.putSettings({index: index, settings: {refresh_interval: null}});
-    
-})
+    await client.indices.putSettings({index: indice, settings: {refresh_interval: null}})
+    console.log("Ended after", new Date() - start, "ms")
+}
+
+function streamToString(stream){
+    return new Promise((resolve, reject) => {
+        let chunks = [];
+        stream.on("data", (chunk) => {
+            chunks.push(chunk.toString());
+        })
+        stream.on("end", () => {
+            resolve(chunks.join(""));
+        })
+        stream.on("error", (err) => {
+            reject(err);
+        })
+    })
+}

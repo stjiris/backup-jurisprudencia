@@ -10,6 +10,7 @@
   "author": "Diogo Almiro",
   "license": "ISC",
   "dependencies": {
-    "@elastic/elasticsearch": "^8.6.0"
+    "@elastic/elasticsearch": "^8.6.0",
+    "tar-stream": "^3.1.6"
   }
 }
