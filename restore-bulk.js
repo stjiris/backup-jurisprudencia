@@ -27,11 +27,11 @@ module.exports = async function restore(filetoTar){
     if( name == "indice.json" ){
         let indiceInfo = JSON.parse(await streamToString(firstEntry), (key, value) => ignore.includes(key) ? undefined : value);
         indice = Object.keys(indiceInfo)[0];
-        let exists = await client.indices.exists({index:indice+"test"});
+        let exists = await client.indices.exists({index:indice});
         if( !exists ){
-            await client.indices.create({index:indice+"test", ...indiceInfo[indice]}).then(r => console.log(`Creating ${r.index}. result: ${r.acknowledged}`))
+            await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${r.index}. result: ${r.acknowledged}`))
         }
-        await client.indices.putSettings({index: indice+"test", settings: {refresh_interval: -1}})
+        await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
     }
     
     await client.helpers.bulk({
@@ -39,10 +39,10 @@ module.exports = async function restore(filetoTar){
         onDocument(doc){
             let id = doc.id;
             delete doc.id;
-            return { index: { _id: id, _index: indice+"test" }}
+            return { index: { _id: id, _index: indice }}
         }
     })
-    await client.indices.putSettings({index: indice+"test", settings: {refresh_interval: null}})
+    await client.indices.putSettings({index: indice, settings: {refresh_interval: null}})
     console.log("Ended after", new Date() - start, "ms")
 }
 
