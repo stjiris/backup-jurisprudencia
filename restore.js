@@ -11,31 +11,35 @@ module.exports = async function restore(filetoTar){
     const extract = tar.extract();
 
     createReadStream(filetoTar).pipe(zlib.createGunzip()).pipe(extract)
-    let indice = null;
+    let indices = null;
     let c = 0;
     for await (const entry of extract) {
         let name = entry.header.name;
-        if( name == "indice.json" ){
+        if( name == "indices.json" ){
             let indiceInfo = JSON.parse(await streamToString(entry), (key, value) => ignore.includes(key) ? undefined : value);
-            indice = Object.keys(indiceInfo)[0];
-            let exists = await client.indices.exists({index:indice});
-            if( !exists ){
-                await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${header.name}. result: ${r.acknowledged}`))
+            indices = Object.keys(indiceInfo);
+            for( let indice of indices ){
+                let exists = await client.indices.exists({index:indice});
+                if( !exists ){
+                    await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${header.name}. result: ${r.acknowledged}`))
+                }
+                await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
             }
-            await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
         }
         else{
-            let id = name.replace("values/","").replace(".json","");
+            let [index, id] = name.replace(".json","").split("/");
             let obj = JSON.parse(await streamToString(entry));
             await client.index({
-                index: indice,
+                index: index,
                 id: id,
                 document: obj
             })
             console.log("Indexing", c++)
         }
     }
-    await client.indices.putSettings({index: indice, settings: {refresh_interval: null}})
+    for( let indice of indices){
+        await client.indices.putSettings({index: indice, settings: {refresh_interval: null}})
+    }
     console.log("Ended after", new Date() - start, "ms")
 }
 

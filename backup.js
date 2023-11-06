@@ -6,13 +6,14 @@ const zlib = require("node:zlib");
 const tar = require("tar-stream");
 const { log } = require("console");
 
-module.exports = async function backup(index){
+module.exports = async function backup(indexPattern){
     const start = new Date();
     const datetime = `${start.getFullYear()}-${start.getMonth()+1}-${start.getDate()}-${start.getHours()}-${start.getMinutes()}-${start.getSeconds()}`
-    let r = await client.indices.get({index: index});
-    console.log("Starting backup", index);
+    let r = await client.indices.get({index: indexPattern});
+    let index = Object.keys(r);
+    console.log("Starting backup", index.join(", "));
     
-    let file = `${index}-${datetime}.tar.gz`;
+    let file = `${datetime}.tar.gz`;
 
     let tarStream = tar.pack();
     let gzStream = zlib.createGzip();
@@ -20,18 +21,18 @@ module.exports = async function backup(index){
 
     tarStream.pipe(gzStream).pipe(writeStream);
 
-    tarStream.entry({name: "indice.json"}, JSON.stringify(r));
+    tarStream.entry({name: "indices.json"}, JSON.stringify(r));
     
     let c = 0;
 
-    r = await client.search({index, size: 50, scroll: '1m', track_total_hits: true});
+    r = await client.search({index, size: 50, scroll: '1m'});
     while( r.hits.hits.length > 0 ){
         for( let hit of r.hits.hits ){
-            tarStream.entry({name: path.join("values", hit._id+".json")}, JSON.stringify(hit._source));
+            tarStream.entry({name: path.join(hit._index, hit._id+".json")}, JSON.stringify(hit._source));
         }
         c+=r.hits.hits.length;
         r = await client.scroll({scroll: '1m',scroll_id: r._scroll_id});
-        console.log(`Backup`, c, " / ", r.hits.total.value)
+        console.log(`Backup`, c)
     }
     tarStream.finalize();
     console.log("Ended after", new Date() - start, "ms")
