@@ -34,6 +34,7 @@ module.exports = async function backup(indexPattern){
         r = await client.scroll({scroll: '1m',scroll_id: r._scroll_id});
         console.log(`Backup`, c)
     }
+    await client.clearScroll({scroll_id: r._scroll_id});
     tarStream.finalize();
     console.log("Ended after", new Date() - start, "ms")
 }
