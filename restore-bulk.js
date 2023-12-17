@@ -24,7 +24,7 @@ module.exports = async function restore(filetoTar){
     let iter = await extract[Symbol.asyncIterator]();
     let firstEntry = (await iter.next()).value;
     let name = firstEntry.header.name;
-    if( name == "indice.json" ){
+    if( name == "indices.json" ){
         let indiceInfo = JSON.parse(await streamToString(firstEntry), (key, value) => ignore.includes(key) ? undefined : value);
         indice = Object.keys(indiceInfo)[0];
         let exists = await client.indices.exists({index:indice});
