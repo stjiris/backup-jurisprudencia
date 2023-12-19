@@ -4,7 +4,6 @@ const {createWriteStream} = require("fs")
 const path = require("path");
 const zlib = require("node:zlib");
 const tar = require("tar-stream");
-const { log } = require("console");
 
 module.exports = async function backup(indexPattern){
     const start = new Date();
@@ -12,7 +11,8 @@ module.exports = async function backup(indexPattern){
     let r = await client.indices.get({index: indexPattern});
     let index = Object.keys(r);
     console.log("Starting backup", index.join(", "));
-    
+    let counts = Object.fromEntries(index.map(i => [i, 0]));
+
     let file = `${datetime}.tar.gz`;
 
     let tarStream = tar.pack();
@@ -29,13 +29,17 @@ module.exports = async function backup(indexPattern){
     while( r.hits.hits.length > 0 ){
         for( let hit of r.hits.hits ){
             tarStream.entry({name: path.join(hit._index, hit._id+".json")}, JSON.stringify(hit._source));
+            counts[hit._index]++;
         }
         c+=r.hits.hits.length;
         r = await client.scroll({scroll: '1m',scroll_id: r._scroll_id});
-        console.log(`Backup`, c)
+        console.log(`Backup`, c);
     }
     await client.clearScroll({scroll_id: r._scroll_id});
     tarStream.finalize();
-    console.log("Ended after", new Date() - start, "ms")
+    console.log("Ended after", new Date() - start, "ms");
+    for( let key in counts ){
+        console.log(key, counts[key]);
+    }
 }
 
