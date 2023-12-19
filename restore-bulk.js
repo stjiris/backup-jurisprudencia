@@ -9,8 +9,8 @@ let ignore = ["provided_name","creation_date","uuid","version"]
 async function *extractDocuments(extract){
     for await (const entry of extract) {
         let name = entry.header.name;
-        let id = name.replace("values/","").replace(".json","");
-        yield {id, ...JSON.parse(await streamToString(entry))}
+        let [index, id] = name.replace(".json","").split("/");
+        yield {index, id, ...JSON.parse(await streamToString(entry))}
     }
 }
 
@@ -26,20 +26,22 @@ module.exports = async function restore(filetoTar){
     let name = firstEntry.header.name;
     if( name == "indices.json" ){
         let indiceInfo = JSON.parse(await streamToString(firstEntry), (key, value) => ignore.includes(key) ? undefined : value);
-        indice = Object.keys(indiceInfo)[0];
-        let exists = await client.indices.exists({index:indice});
-        if( !exists ){
-            await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${r.index}. result: ${r.acknowledged}`))
+        for( let indice of Object.keys(indiceInfo) ){
+            let exists = await client.indices.exists({index:indice});
+            if( !exists ){
+                await client.indices.create({index:indice, ...indiceInfo[indice]}).then(r => console.log(`Creating ${r.index}. result: ${r.acknowledged}`))
+            }
+            await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
         }
-        await client.indices.putSettings({index: indice, settings: {refresh_interval: -1}})
     }
     
     await client.helpers.bulk({
         datasource: extractDocuments(iter),
         onDocument(doc){
             let id = doc.id;
+            let index = doc.index;
             delete doc.id;
-            return { index: { _id: id, _index: indice }}
+            return { index: { _id: id, _index: index }}
         }
     })
     await client.indices.putSettings({index: indice, settings: {refresh_interval: null}})
